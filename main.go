@@ -17,6 +17,11 @@ const (
 	dbname   = "ecommerce"
 )
 
+type product struct {
+	name  string
+	price int
+}
+
 func dsn(dbName string) string {
 	return fmt.Sprintf("%s:%s@tcp(%s)/%s", username, password, hostname, dbName)
 }
@@ -89,6 +94,36 @@ func createProductTable(db *sql.DB) error {
 	return nil
 }
 
+func insert(db *sql.DB, p product) error {
+	query := "INSERT INTO product(product_name, product_price) VALUES (?, ?)"
+	ctx, cancelfunc := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelfunc()
+	stmt, err := db.PrepareContext(ctx, query)
+	if err != nil {
+		log.Printf("Error %s when preparing SQL statement", err)
+		return err
+	}
+	defer stmt.Close()
+	res, err := stmt.ExecContext(ctx, p.name, p.price)
+	if err != nil {
+		log.Printf("Error %s when inserting row into products table", err)
+		return err
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		log.Printf("Error %s when finding rows affected", err)
+		return err
+	}
+	log.Printf("%d products created ", rows)
+	prdID, err := res.LastInsertId()
+	if err != nil {
+		log.Printf("Error %s when getting last inserted product", err)
+		return err
+	}
+	log.Printf("Product with ID %d created", prdID)
+	return nil
+}
+
 func main() {
 
 	db, err := dbConnection()
@@ -101,6 +136,16 @@ func main() {
 	err = createProductTable(db)
 	if err != nil {
 		log.Printf("Create product table failed with error %s", err)
+		return
+	}
+
+	p := product{
+		name:  "iphone",
+		price: 950,
+	}
+	err = insert(db, p)
+	if err != nil {
+		log.Printf("Insert product failed with error %s", err)
 		return
 	}
 
